@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.nn.utils.rnn as torchrnn
 import torch.optim as optim
 
-class DLModel(nn.Module):
+class Seq2Seq(nn.Module):
     """
         Parameters:
         - feature_nums: list of feature num for every detector.
