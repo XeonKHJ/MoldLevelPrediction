@@ -12,21 +12,24 @@ class BiGruAE(nn.Module):
         - output_size: number of output
         - num_layers: layers of LSTM to stack
     """
-    def __init__(self, feature_size, extraFeatSize, hidden_size=1, output_size=1, num_layers=1):
+    def __init__(self, tempFeatSize, staticFeatSize, hidden_size=1, output_size=1, num_layers=1):
         super().__init__()
-        self.feature_size = feature_size
+        self.tempFeatSize = tempFeatSize
+        self.staticFeatSize = staticFeatSize
         self.hidden_size = hidden_size
         self.output_size = output_size
 
-        self.rnnEncoder = nn.GRU(feature_size, hidden_size, num_layers,batch_first =True, bidirectional=True) # utilize the LSTM model in torch.nn 
+        self.rnnEncoder = nn.GRU(tempFeatSize, hidden_size, num_layers,batch_first =True, bidirectional=True) # utilize the LSTM model in torch.nn 
         self.encodeFc = nn.Linear(2*hidden_size, hidden_size)
         self.rnnDecoder = nn.GRU(hidden_size, hidden_size, num_layers, batch_first=True, bidirectional=True) 
         
         self.decodeFc = nn.Linear(2*hidden_size,output_size)
 
-        self.staticBindingFc1 = nn.Linear(1, 3)
+        self.staticBindingFc1 = nn.Linear(self.tempFeatSize + self.staticFeatSize, 4)
+        self.relu1 = nn.ReLU()
         self.staticBindingFc2 = nn.Linear(4, 3)
-        self.staticBindingFc2 = nn.Linear(3, 1)
+        self.relu2 = nn.ReLU()
+        self.staticBindingFc3 = nn.Linear(3, 1)
         # self.finalCalculation = nn.Sigmoid()
         self.isCudaSupported = torch.cuda.is_available()
 
@@ -40,10 +43,20 @@ class BiGruAE(nn.Module):
         x, b = self.rnnDecoder(x)
 
         x, lengths = torchrnn.pad_packed_sequence(x, batch_first=True)
-    
         x = self.decodeFc(x)
+
         # x = self.finalCalculation(x)
         if outputLength == None:
             outputLength = to_x.shape[1]
         x = x[:, x.shape[1]-outputLength:x.shape[1]]
+
+        repeatedContext = context.reshape([context.shape[0], -1, context.shape[1]]).repeat(1, to_x.shape[1],1)
+        x = torch.cat((x, repeatedContext), 2)
+
+        x = self.staticBindingFc1(x)
+        x = self.relu1(x)
+        x = self.staticBindingFc2(x)
+        x = self.relu2(x)
+        x = self.staticBindingFc3(x)
+
         return x

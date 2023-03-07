@@ -25,7 +25,7 @@ class Seq2SeqGruAE(nn.Module):
         self.encodeFc = nn.Linear(hidden_size, hidden_size)
         self.gruDecoder = nn.GRU(hidden_size, hidden_size, num_layers, batch_first=True) 
         
-        self.forwardCalculation = nn.Linear(hidden_size,output_size)
+        self.forwardCalculation = nn.Linear(hidden_size + staticFeatSize,output_size)
         # self.finalCalculation = nn.Sigmoid()
         self.isCudaSupported = torch.cuda.is_available()
 
@@ -48,6 +48,12 @@ class Seq2SeqGruAE(nn.Module):
         for idx in range(1, outputLength):
             decoderOutputUnit, encodedH = self.gruDecoder(decoderOutput[:, idx-1, :].reshape(paddedX.shape[0], 1, -1), encodedH)
             decoderOutput = torch.cat((decoderOutput, decoderOutputUnit), 1)
+
+        repeatedContext = context.reshape([context.shape[0], -1, context.shape[1]]).repeat(1, decoderOutput.shape[1],1)
+        decoderOutput = torch.cat((decoderOutput, repeatedContext), 2)
+
+
+
         x = self.forwardCalculation(decoderOutput)
         # x = self.finalCalculation(x)
         return x

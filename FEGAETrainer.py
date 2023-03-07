@@ -36,8 +36,8 @@ class FEGAETrainer():
         
         self.forcastOptimizer.zero_grad()
         self.errorOptimizer.zero_grad()
-        error = self.errorModel(trainSet, lengths, int(trainSet.shape[1] / 2))
-        output = self.forcastModel(preSet, lengths / 2)
+        error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2))
+        output = self.forcastModel(preSet, lengths / 2, context)
         t = output + error
         loss2 = self.lossFunc(t, latterSet) + self.lambda2 * 1/torch.norm(error, p=1)
         loss2.backward()
@@ -46,8 +46,8 @@ class FEGAETrainer():
 
         self.forcastOptimizer.zero_grad()
         self.errorOptimizer.zero_grad()
-        error = self.errorModel(trainSet, lengths, int(trainSet.shape[1] / 2)).detach()
-        output = self.forcastModel(preSet, lengths / 2)
+        error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2)).detach()
+        output = self.forcastModel(preSet, lengths / 2, context)
         tl = latterSet - error
         forcastLoss = self.lossFunc(output, tl)
         realLoss = self.lossFunc(output, latterSet)
@@ -58,15 +58,15 @@ class FEGAETrainer():
 
         # update error model
         self.errorOptimizer.zero_grad()
-        error = self.errorModel(trainSet, lengths, int(trainSet.shape[1] / 2))
-        output = self.forcastModel(preSet, lengths / 2).detach()
+        error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2))
+        output = self.forcastModel(preSet, lengths / 2, context).detach()
         diff = latterSet - output
         loss3 = self.lossFunc(error, diff)
         loss3.backward()
         self.errorOptimizer.step()
 
         self.backwardOptimzer.zero_grad()
-        backwardOutput = self.backwardModel(latterSet, lengths / 2)
+        backwardOutput = self.backwardModel(latterSet, lengths / 2, context)
         realLoss = self.lossFunc(backwardOutput, preSet)
         realLoss.backward()
         self.backwardOptimzer.step()

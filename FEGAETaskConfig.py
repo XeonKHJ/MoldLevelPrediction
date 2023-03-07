@@ -15,9 +15,9 @@ class FEGAETaskConfig():
         feature_size = 1
         extraFeatSize = 2
         output_size = 1
-        forcastModel = BiGruAE(feature_size,10,output_size,2)
-        backwardModel = BiGruAE(feature_size,10,output_size,2)
-        errorModel = Seq2SeqGruAE(feature_size,10,output_size,2)
+        forcastModel = BiGruAE(feature_size,2,10,output_size,2)
+        backwardModel = BiGruAE(feature_size,2,10,output_size,2)
+        errorModel = Seq2SeqGruAE(feature_size,2,10,output_size,2)
         if torch.cuda.is_available():
             forcastModel.cuda()
             errorModel.cuda()

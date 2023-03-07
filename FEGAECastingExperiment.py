@@ -15,7 +15,7 @@ class FEGAECastingExperiment(object):
 
     def getExperimentConfig(self):
         normalDataReader = CastingDataReader("datasets")
-        config = FEGAETaskConfig(self.logger, self.getName(), showTrainingInfo=False)
+        config = FEGAETaskConfig(self.logger, self.getName(), showTrainingInfo=True)
         trainer = config.getConfig()
         windowSize = 20
         processers = [
