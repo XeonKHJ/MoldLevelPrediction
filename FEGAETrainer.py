@@ -17,7 +17,7 @@ class FEGAETrainer():
         self.backwardOptimzer = torch.optim.Adam(self.backwardModel.parameters(), lr=learningRate)
         self.modelName = taskName
         self.logger = logger
-        self.windowSize = 100
+        self.windowSize = 20
         self.step = 1
         self.splitData = None
         self.showTrainningInfo = showTrainningInfo
@@ -25,6 +25,11 @@ class FEGAETrainer():
         self.lambda2 = 1e-3
         self.toRecordThresholds = None
         self.toRecordDiffs =None
+
+        if torch.cuda.is_available():
+            self.initDevice = torch.device('cuda')
+        else:
+            self.initDevice = torch.device('cpu')
 
     def train(self, trainSet, lengths, labelSet, context):
         self.forcastModel.train()
@@ -78,13 +83,13 @@ class FEGAETrainer():
 
         return loss3
 
-    def evalResult(self, validDataset, validsetLengths, labels):
+    def evalResult(self, validDataset, validsetLengths, labels, context):
         self.forcastModel.eval()
-        reconstructData = self.reconstruct(self.forcastModel, validDataset, validsetLengths)
+        reconstructData = self.reconstruct(self.forcastModel, validDataset, validsetLengths, context)
         self.toRecordThresholds = None
         self.toRecordDiffs =None
-        evalWindowSize = 100
-        step = 20
+        evalWindowSize = 20
+        step = 5
         thresholders = list()
         for threadhold in [0.4,0.3, 0.2, 0.1]:
             for stdMean in [1, 0.75, 0.5, 0.4, 0.3]:
@@ -163,11 +168,11 @@ class FEGAETrainer():
                 self.toRecordThresholds = thresholds
             print('stdrate', threadholder.stdRate, '\t', threadholder.meanRate, '\tth\t', format(threadhold, '.5f'), '\tprecision\t', format(precision, '.5f'), '\trecall\t', format(recall, '.3f'), '\tf1\t', format(f1, '.5f')) 
 
-    def recordResult(self, dataset, lengths, storeNames):
+    def recordResult(self, dataset, lengths, context, storeNames):
         self.forcastModel.eval()
         lengths = lengths.int()
-        validOutput = self.reconstruct(self.forcastModel, dataset, lengths)
-        errorOutput = self.reconstructError(dataset, lengths)
+        validOutput = self.reconstruct(self.forcastModel, dataset, lengths, context)
+        errorOutput = self.reconstructError(dataset, lengths, context)
         sumOutput = validOutput + errorOutput
         threshold = 0.1
         for validIdx in range(len(lengths)):
@@ -208,29 +213,29 @@ class FEGAETrainer():
         self.errorModel.load_state_dict(torch.load(path.join(globalConfig.getModelPath(), errorModelName))) 
         self.backwardModel.load_state_dict(torch.load(path.join(globalConfig.getModelPath(), backwardName))) 
 
-    def reconstruct(self, mlModel, validDataset, validsetLength):
-        reconstructSeqs = torch.zeros(validDataset.shape, device=torch.device('cuda'))
+    def reconstruct(self, mlModel, validDataset, validsetLength, context):
+        reconstructSeqs = torch.zeros(validDataset.shape, device=self.initDevice)
         preIdx = -100
         for idx in range(0, validDataset.shape[1] - self.windowSize, self.windowSize):
             if idx+2*self.windowSize > reconstructSeqs.shape[1]:
                 break
             lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()
-            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = mlModel(validDataset[:,idx:idx+self.windowSize,:], lengths)
+            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = mlModel(validDataset[:,idx:idx+self.windowSize,:], lengths, context)
             preIdx = idx
             
         lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()
-        reconstructSeqs[:,reconstructSeqs.shape[1]-self.windowSize:reconstructSeqs.shape[1],:] = mlModel(validDataset[:,validDataset.shape[1]-2*self.windowSize:validDataset.shape[1]-self.windowSize:,:], lengths)
-        reconstructSeqs[:,0:self.windowSize, :] = self.backwardModel(validDataset[:, self.windowSize:2*self.windowSize, :], lengths)
+        reconstructSeqs[:,reconstructSeqs.shape[1]-self.windowSize:reconstructSeqs.shape[1],:] = mlModel(validDataset[:,validDataset.shape[1]-2*self.windowSize:validDataset.shape[1]-self.windowSize:,:], lengths, context)
+        reconstructSeqs[:,0:self.windowSize, :] = self.backwardModel(validDataset[:, self.windowSize:2*self.windowSize, :], lengths, context)
         return reconstructSeqs
 
-    def reconstructError(self, validDataset, validsetLength):
-        reconstructSeqs = torch.zeros(validDataset.shape, device=torch.device('cuda'))
+    def reconstructError(self, validDataset, validsetLength, context):
+        reconstructSeqs = torch.zeros(validDataset.shape, device=self.initDevice)
         preIdx = -100
         for idx in range(0, validDataset.shape[1] - 2 * self.windowSize, int(self.windowSize/4)):
             if idx+2*self.windowSize > reconstructSeqs.shape[1]:
                 break
             lengths = torch.tensor(2*self.windowSize).repeat(validDataset.shape[0]).int()
-            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = self.errorModel(validDataset[:,idx:idx+2*self.windowSize,:], lengths, self.windowSize)
+            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = self.errorModel(validDataset[:,idx:idx+2*self.windowSize,:], lengths, context, self.windowSize)
             preIdx = idx
             
         lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()

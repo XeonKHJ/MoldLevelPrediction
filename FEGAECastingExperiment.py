@@ -22,6 +22,6 @@ class FEGAECastingExperiment(object):
             # LabelOffsetDataProcessor(windowSize),
             # PartitionDataProcessor(0.5),
             SlidingWindowStepDataProcessor(windowSize=windowSize, step=1),
-            ShuffleDataProcessor()
+            # ShuffleDataProcessor()
         ]
         return trainer, normalDataReader, normalDataReader, processers

@@ -38,18 +38,16 @@ if __name__ == '__main__':
     dataTensor = fullDataTensor
     dataLengths = fullDataLenghts
     for processor in processers:
-        dataTensor, dataLengths = processor.process(dataTensor, dataLengths)
+        dataTensor, dataLengths, dataContext = processor.process(dataTensor, dataLengths, context)
 
-    trainDataset = AnomalyDetectDataset(dataTensor, fullDataLabels, context, dataLengths)
-    testDataset = AnomalyDetectDataset(dataTensor, fullDataLabels, context, dataLengths)
-    validDataset = AnomalyDetectDataset(dataTensor,fullDataLabels, context, dataLengths)
+    trainDataset = AnomalyDetectDataset(dataTensor, torch.zeros(dataTensor.shape), dataContext, dataLengths)
+    validDataset = AnomalyDetectDataset(fullDataTensor,torch.zeros(fullDataTensor.shape), context, fullDataLenghts)
 
     # start trainning
     epoch = 0
     keepTrainning = True
 
-    trainDataLoader = DataLoader(trainDataset, batch_size=fullDataTensor.shape[0], shuffle=False)
-    testDataLoader = DataLoader(testDataset, shuffle=False, batch_size=fullDataTensor.shape[0])
+    trainDataLoader = DataLoader(trainDataset, batch_size=dataTensor.shape[0], shuffle=False)
     validDataLaoder = DataLoader(validDataset, shuffle=False, batch_size = fullDataTensor.shape[0])
 
     while keepTrainning:
@@ -61,12 +59,10 @@ if __name__ == '__main__':
             #     lengths = testLabels[:, testLabels.shape[1]-1]
             #     labels = testLabels[:, 0:testLabels.shape[1]-1]            
             #     trainer.evalResult(testData, lengths, labels)
-            for validData, validLabels in validDataLaoder:
-                lengths = validLabels[:, validLabels.shape[1]-1]
-                labels = validLabels[:, 0:validLabels.shape[1]-1] 
+            for validData, validContext, validLabels, validLengths in validDataLaoder:
                 newFileList = list() 
-                for fileName in validFileList:
+                for fileName in fileList:
                      newFileList.append(path.splitext(path.basename(fileName))[0])
-                trainer.evalResult(validData, lengths, labels)  
-                trainer.recordResult(validData, lengths, newFileList)           
+                trainer.evalResult(validData, validLengths, validLabels, validContext)  
+                trainer.recordResult(validData, validLengths, validContext, newFileList)           
         epoch += 1
