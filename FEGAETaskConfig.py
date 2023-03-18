@@ -1,5 +1,6 @@
 from FEGAETrainer import FEGAETrainer
 from Models.BiGruAE import BiGruAE
+from Models.BiLSTMAE import BiLSTMAE
 from Models.Seq2SeqGruAE import Seq2SeqGruAE
 
 import torch
@@ -13,11 +14,11 @@ class FEGAETaskConfig():
 
     def getConfig(self, isCuda = False):
         feature_size = 1
-        extraFeatSize = 2
+        extraFeatSize = 4
         output_size = 1
-        forcastModel = BiGruAE(feature_size,2,10,output_size,2)
-        backwardModel = BiGruAE(feature_size,2,10,output_size,2)
-        errorModel = Seq2SeqGruAE(feature_size,2,10,output_size,2)
+        forcastModel = BiLSTMAE(feature_size,extraFeatSize,10,output_size,2)
+        backwardModel = BiLSTMAE(feature_size,extraFeatSize,10,output_size,2)
+        errorModel = Seq2SeqGruAE(feature_size,extraFeatSize,10,output_size,2)
         if torch.cuda.is_available():
             forcastModel.cuda()
             errorModel.cuda()

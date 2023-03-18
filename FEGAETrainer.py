@@ -1,10 +1,13 @@
 from DataProcessor.SlidingWindowStepDataProcessor import SlidingWindowStepDataProcessor
 import time
 import torch
+import torch.nn
 import os.path as path
+from DilateLoss import DialteLoss
 from Utils import DynamicThreshold
 
 from globalConfig import globalConfig
+from loss.dilate_loss import dilate_loss
 
 class FEGAETrainer():
     def __init__(self, forcastModel, backwardModel, errorModel, taskName, logger, learningRate=1e-3, showTrainningInfo=True):
@@ -12,17 +15,18 @@ class FEGAETrainer():
         self.backwardModel = backwardModel
         self.errorModel = errorModel
         self.lossFunc = torch.nn.MSELoss()
+        # self.dialteLoss = DialteLoss()
         self.forcastOptimizer = torch.optim.Adam(self.forcastModel.parameters(), lr=learningRate)
         self.errorOptimizer = torch.optim.Adam(self.errorModel.parameters(), lr=learningRate)
         self.backwardOptimzer = torch.optim.Adam(self.backwardModel.parameters(), lr=learningRate)
         self.modelName = taskName
         self.logger = logger
-        self.windowSize = 20
+        self.windowSize = 100
         self.step = 1
         self.splitData = None
         self.showTrainningInfo = showTrainningInfo
-        self.lambda1 = 0.8
-        self.lambda2 = 1e-3
+        self.lambda1 = 0.7
+        self.lambda2 = 1e-17
         self.toRecordThresholds = None
         self.toRecordDiffs =None
 
@@ -44,7 +48,10 @@ class FEGAETrainer():
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2))
         output = self.forcastModel(preSet, lengths / 2, context)
         t = output + error
-        loss2 = self.lossFunc(t, latterSet) + self.lambda2 * 1/torch.norm(error, p=1)
+        realLoss = self.lossFunc(output, latterSet)
+        # dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.01, device=torch.device('cuda'))
+        mseloss = self.lossFunc(t, latterSet)
+        loss2 = mseloss + self.lambda1 * realLoss + self.lambda2 * 1/torch.norm(error, p=1)
         loss2.backward()
         self.forcastOptimizer.step()
         self.errorOptimizer.step()
@@ -55,8 +62,8 @@ class FEGAETrainer():
         output = self.forcastModel(preSet, lengths / 2, context)
         tl = latterSet - error
         forcastLoss = self.lossFunc(output, tl)
-        realLoss = self.lossFunc(output, latterSet)
-        loss1 = forcastLoss + self.lambda1 * realLoss
+        
+        loss1 = forcastLoss
         loss1.backward()
         self.forcastOptimizer.step()
         # self.errorOptimizer.step()
@@ -231,7 +238,7 @@ class FEGAETrainer():
     def reconstructError(self, validDataset, validsetLength, context):
         reconstructSeqs = torch.zeros(validDataset.shape, device=self.initDevice)
         preIdx = -100
-        for idx in range(0, validDataset.shape[1] - 2 * self.windowSize, int(self.windowSize/4)):
+        for idx in range(0, validDataset.shape[1] - 2 * self.windowSize, int(self.windowSize)):
             if idx+2*self.windowSize > reconstructSeqs.shape[1]:
                 break
             lengths = torch.tensor(2*self.windowSize).repeat(validDataset.shape[0]).int()

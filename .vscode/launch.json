@@ -5,10 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: 当前文件",
+            "name": "Python: 异常检测",
             "type": "python",
             "request": "launch",
             "program": "AnomalyDetection.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: 预测",
+            "type": "python",
+            "request": "launch",
+            "program": "MoldLevelPredictMain.py",
             "console": "integratedTerminal",
             "justMyCode": true
         }

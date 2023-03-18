@@ -1,9 +1,12 @@
 import torch
 import torch.nn
 import os.path as path
+from AECastingExperiment import AECastingExperiment
 from AnomalyDetectDataset import AnomalyDetectDataset
+from DataProcessor.DeviationProcessor import DeviationProcessor
 from FEGAECastingExperiment import FEGAECastingExperiment
-from PlotLogger import PlotLogger
+from Logger.PlotCSVLogger import PlotCSVLogger
+from Logger.PlotLogger import PlotLogger
 from PredictDataset import CastingDataset
 
 from globalConfig import globalConfig
@@ -16,9 +19,10 @@ if __name__ == '__main__':
     else:
         print("CUDA is unavaliable")
 
-    logger = PlotLogger(False)
+    logger = PlotCSVLogger(False, 'SavedPics', 'SavedCsvs')
 
     # experiment = RAENABExperiment(logger, "realTweets", "Twitter")
+    # experiment = AECastingExperiment(logger)
     experiment = FEGAECastingExperiment(logger)
     trainer, trainDataReader, validDataReader, processers = experiment.getExperimentConfig()
 
@@ -30,9 +34,8 @@ if __name__ == '__main__':
     # displayDataTensor, displayDataLenghts, displayDataLabels, displayFileList = dataReader.read()
     for i in range(fullDataTensor.shape[0]):
         curList = fullDataTensor[i,0:fullDataLenghts[i].int().item(),0].reshape(-1).tolist()
-        logger.logResults([curList], ['lv_act'], 'lv-' + path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
         stoper = fullDataTensor[i,0:fullDataLenghts[i].int().item(),1].reshape(-1).tolist()
-        logger.logResults([curList], ['stoper'], 'stp-' + path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
+        logger.logResults([curList, stoper], ['lv_act','stoper'], path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
 
     # data preprocess
     dataTensor = fullDataTensor
@@ -40,15 +43,18 @@ if __name__ == '__main__':
     for processor in processers:
         dataTensor, dataLengths, dataContext = processor.process(dataTensor, dataLengths, context)
 
+    # validDataTensor, validLengths, validContext = DeviationProcessor().process(fullDataTensor, fullDataLenghts, context)
+    validDataTensor, validLengths, validContext =fullDataTensor, fullDataLenghts, context
+
     trainDataset = AnomalyDetectDataset(dataTensor, torch.zeros(dataTensor.shape), dataContext, dataLengths)
-    validDataset = AnomalyDetectDataset(fullDataTensor,torch.zeros(fullDataTensor.shape), context, fullDataLenghts)
+    validDataset = AnomalyDetectDataset(validDataTensor,torch.zeros(validDataTensor.shape), context, validLengths)
 
     # start trainning
     epoch = 0
     keepTrainning = True
 
-    trainDataLoader = DataLoader(trainDataset, batch_size=dataTensor.shape[0], shuffle=False)
-    validDataLaoder = DataLoader(validDataset, shuffle=False, batch_size = fullDataTensor.shape[0])
+    trainDataLoader = DataLoader(trainDataset, batch_size=1000, shuffle=False)
+    validDataLaoder = DataLoader(validDataset, shuffle=False, batch_size = validDataTensor.shape[0])
 
     while keepTrainning:
         for trainData, context, trainLabels, lengths in trainDataLoader:
