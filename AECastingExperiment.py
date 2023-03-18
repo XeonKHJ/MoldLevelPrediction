@@ -23,8 +23,8 @@ class AECastingExperiment(object):
         processers = [
             # LabelOffsetDataProcessor(windowSize),
             # PartitionDataProcessor(0.5),
-            DeviationProcessor(),
-            SlidingWindowStepDataProcessor(windowSize=windowSize, step=1),
+            # DeviationProcessor(),
+            # SlidingWindowStepDataProcessor(windowSize=windowSize, step=1),
             # ShuffleDataProcessor()
         ]
         return trainer, normalDataReader, normalDataReader, processers

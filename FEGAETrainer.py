@@ -170,7 +170,11 @@ class FEGAETrainer():
                 f1 = 2*(recall * precision) / (recall + precision)
 
             
-            if f1 >= maxf1:
+            # if f1 >= maxf1:
+            #     maxf1 = f1
+            #     self.toRecordThresholds = thresholds
+
+            if threadhold == 0.3 and stdMean == 0.5:
                 maxf1 = f1
                 self.toRecordThresholds = thresholds
             print('stdrate', threadholder.stdRate, '\t', threadholder.meanRate, '\tth\t', format(threadhold, '.5f'), '\tprecision\t', format(precision, '.5f'), '\trecall\t', format(recall, '.3f'), '\tf1\t', format(f1, '.5f')) 

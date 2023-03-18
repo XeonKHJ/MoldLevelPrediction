@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 import torch.nn
 import os.path as path
@@ -12,6 +13,15 @@ from PredictDataset import CastingDataset
 from globalConfig import globalConfig
 
 from torch.utils.data import DataLoader
+
+
+
+
+def saveLosses(losses, filename):
+    toSave = {"loss": losses}
+    df = pd.DataFrame(toSave)
+    df.to_csv(path.join(filename+".csv"), index=False)
+    
 
 if __name__ == '__main__':
     if torch.cuda.is_available():
@@ -40,6 +50,7 @@ if __name__ == '__main__':
     # data preprocess
     dataTensor = fullDataTensor
     dataLengths = fullDataLenghts
+    dataContext = context
     for processor in processers:
         dataTensor, dataLengths, dataContext = processor.process(dataTensor, dataLengths, context)
 
@@ -56,9 +67,12 @@ if __name__ == '__main__':
     trainDataLoader = DataLoader(trainDataset, batch_size=1000, shuffle=False)
     validDataLaoder = DataLoader(validDataset, shuffle=False, batch_size = validDataTensor.shape[0])
 
+    losses = []
+    curLosses = list()
     while keepTrainning:
         for trainData, context, trainLabels, lengths in trainDataLoader:
             loss = trainer.train(trainData, lengths, trainLabels, context)
+            curLosses.append(loss.item())
         if epoch % 50 == 0:
             trainer.save()
             # for testData, testLabels in testDataLoader:
@@ -70,5 +84,8 @@ if __name__ == '__main__':
                 for fileName in fileList:
                      newFileList.append(path.splitext(path.basename(fileName))[0])
                 trainer.evalResult(validData, validLengths, validLabels, validContext)  
-                trainer.recordResult(validData, validLengths, validContext, newFileList)           
+                trainer.recordResult(validData, validLengths, validContext, newFileList) 
+            saveLosses(curLosses, "losses.csv")
         epoch += 1
+        # losses.append(torch.tensor(curLosses).mean().item())
+        # curLosses = list()
