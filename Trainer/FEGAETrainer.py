@@ -51,12 +51,14 @@ class FEGAETrainer():
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2))
         output = self.forcastModel(preSet, lengths / 2, context)
         t = output + error
-        realLoss = self.lossFunc(output, latterSet)
-        dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.01, device=torch.device('cuda'))
+        # realLoss = self.lossFunc(output, latterSet)
+        realLoss ,_,_= dilate_loss(output, latterSet, 0.5, 0.01, device=torch.device('cuda'))
+        # dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.01, device=torch.device('cuda'))
         
         mseloss = self.lossFunc(t, latterSet)
-        loss2 = dialteloss + mseloss + self.lambda1 * realLoss + self.lambda2 * 1/torch.norm(error, p=1)
-        loss2.backward()
+        errorExpand = 1/torch.norm(error, p=1) * error.shape[0]
+        totalLoss = mseloss + self.lambda1 * realLoss + self.lambda2 * errorExpand
+        totalLoss.backward()
         self.forcastOptimizer.step()
         self.errorOptimizer.step()
 
@@ -65,10 +67,8 @@ class FEGAETrainer():
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2)).detach()
         output = self.forcastModel(preSet, lengths / 2, context)
         tl = latterSet - error
-        forcastLoss = self.lossFunc(output, tl)
-        
-        loss1 = forcastLoss
-        loss1.backward()
+        forcastLoss,_,_ = dilate_loss(output, tl, 0.5, 0.01, device=torch.device('cuda'))
+        forcastLoss.backward()
         self.forcastOptimizer.step()
         # self.errorOptimizer.step()
 
@@ -77,25 +77,27 @@ class FEGAETrainer():
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2))
         output = self.forcastModel(preSet, lengths / 2, context).detach()
         diff = latterSet - output
-        loss3 = self.lossFunc(error, diff)
-        loss3.backward()
+        errorLoss = self.lossFunc(error, diff)
+        errorLoss.backward()
         self.errorOptimizer.step()
 
         self.backwardOptimzer.zero_grad()
         backwardOutput = self.backwardModel(latterSet, lengths / 2, context)
-        realLoss = self.lossFunc(backwardOutput, preSet)
-        realLoss.backward()
+        backLoss = self.lossFunc(backwardOutput, preSet)
+        backLoss.backward()
         self.backwardOptimzer.step()
         
         backwardTime = time.perf_counter()
         if self.showTrainningInfo:
-            # print(dialteloss)
-            print("\tforcast\t", format(dialteloss.item(), ".5f"), "\treal\t", format(realLoss.item(), ".5f"),"\tloss1\t", format(loss1.item(),".5f"),  "\tloss2\t", format(loss2.item(),".5f"), '\terror\t', format(torch.norm(error, p=1).item(), ".5f"))
+            print("real\t", format(realLoss.item(), ".5f"),
+                  "\tfore\t", format(forcastLoss.item(),".5f"),  
+                  "\ttotal\t", format(totalLoss.item(),".5f"), 
+                  '\terror\t', format(errorExpand.item(), ".5f"))
 
         self.recordLoss['mse'].append(mseloss.item())
-        self.recordLoss['dialte'].append(dialteloss.item())
+        self.recordLoss['dialte'].append(forcastLoss.item())
 
-        return loss3
+        return errorLoss
 
     def saveLoss(self):
         toSave = {"mse": self.recordLoss['mse'],"dialte": self.recordLoss['dialte']}
@@ -241,11 +243,12 @@ class FEGAETrainer():
     def reconstruct(self, mlModel, validDataset, validsetLength, context):
         reconstructSeqs = torch.zeros(validDataset.shape, device=self.initDevice)
         preIdx = -100
-        for idx in range(0, validDataset.shape[1] - self.windowSize, self.windowSize):
+        halfWindowSize = int(self.windowSize/2)
+        for idx in range(0, validDataset.shape[1] - self.windowSize, int(self.windowSize/2)):
             if idx+2*self.windowSize > reconstructSeqs.shape[1]:
                 break
-            lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()
-            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = mlModel(validDataset[:,idx:idx+self.windowSize,:], lengths, context)
+            lengths = torch.tensor(halfWindowSize).repeat(validDataset.shape[0]).int()
+            reconstructSeqs[:,idx+halfWindowSize:idx+self.windowSize,:] = mlModel(validDataset[:,idx:idx+halfWindowSize,:], lengths, context)
             preIdx = idx
             
         lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()
@@ -256,11 +259,12 @@ class FEGAETrainer():
     def reconstructError(self, validDataset, validsetLength, context):
         reconstructSeqs = torch.zeros(validDataset.shape, device=self.initDevice)
         preIdx = -100
-        for idx in range(0, validDataset.shape[1] - 2 * self.windowSize, int(self.windowSize)):
+        halfWindowSize = int(self.windowSize / 2)
+        for idx in range(0, validDataset.shape[1] - 2 * self.windowSize, halfWindowSize):
             if idx+2*self.windowSize > reconstructSeqs.shape[1]:
                 break
-            lengths = torch.tensor(2*self.windowSize).repeat(validDataset.shape[0]).int()
-            reconstructSeqs[:,idx+self.windowSize:idx+2*self.windowSize,:] = self.errorModel(validDataset[:,idx:idx+2*self.windowSize,:], lengths, context, self.windowSize)
+            lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()
+            reconstructSeqs[:,idx+halfWindowSize:idx+self.windowSize,:] = self.errorModel(validDataset[:,idx:idx+self.windowSize,:], lengths, context, halfWindowSize)
             preIdx = idx
             
         lengths = torch.tensor(self.windowSize).repeat(validDataset.shape[0]).int()

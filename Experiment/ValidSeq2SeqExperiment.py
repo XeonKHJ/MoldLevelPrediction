@@ -17,7 +17,7 @@ class ValidSeq2SeqExperiment(object):
         return "ValidSeq2SeqExperiment"
 
     def getExperimentConfig(self):
-        normalDataReader = ValidCastingDataReader("datasets", "YM20220330045800")
+        normalDataReader = ValidCastingDataReader("datasets")
         windowSize = 10
         config = Seq2SeqTaskConfig(self.logger, self.getName(), showTrainingInfo=True, windowSize = windowSize)
         trainer = config.getConfig()

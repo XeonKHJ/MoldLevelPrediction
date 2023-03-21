@@ -16,7 +16,7 @@ class ValidDeviationExperiment(object):
         return "ValidDeviationExperiment"
 
     def getExperimentConfig(self):
-        normalDataReader = ValidCastingDataReader("datasets", "YM20220330045800")
+        normalDataReader = ValidCastingDataReader("datasets")
         windowSize = 6
         config = FEGAETaskConfig(self.logger, self.getName(), showTrainingInfo=True, windowSize=windowSize)
         trainer = config.getConfig()
