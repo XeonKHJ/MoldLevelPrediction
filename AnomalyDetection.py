@@ -2,10 +2,14 @@ import pandas as pd
 import torch
 import torch.nn
 import os.path as path
-from AECastingExperiment import AECastingExperiment
-from AnomalyDetectDataset import AnomalyDetectDataset
+from Experiment.AECastingExperiment import AECastingExperiment
+from Dataset.AnomalyDetectDataset import AnomalyDetectDataset
 from DataProcessor.DeviationProcessor import DeviationProcessor
-from FEGAECastingExperiment import FEGAECastingExperiment
+from Experiment.DeviationExperiment import DeviationExperiment
+from Experiment.FEGAECastingExperiment import FEGAECastingExperiment
+from Experiment.ValidAEExperiment import ValidAEExperiment
+from Experiment.ValidDeviationExperiment import ValidDeviationExperiment
+from Experiment.ValidSeq2SeqExperiment import ValidSeq2SeqExperiment
 from Logger.PlotCSVLogger import PlotCSVLogger
 from Logger.PlotLogger import PlotLogger
 from PredictDataset import CastingDataset
@@ -29,11 +33,12 @@ if __name__ == '__main__':
     else:
         print("CUDA is unavaliable")
 
-    logger = PlotCSVLogger(False, 'SavedPics', 'SavedCsvs')
+    logger = PlotCSVLogger(False, globalConfig.getSavedPicturePath(), globalConfig.getCsvPath())
 
     # experiment = RAENABExperiment(logger, "realTweets", "Twitter")
     # experiment = AECastingExperiment(logger)
-    experiment = FEGAECastingExperiment(logger)
+    # experiment = ValidSeq2SeqExperiment(logger)
+    experiment = ValidDeviationExperiment(logger)
     trainer, trainDataReader, validDataReader, processers = experiment.getExperimentConfig()
 
     # load data
@@ -54,8 +59,8 @@ if __name__ == '__main__':
     for processor in processers:
         dataTensor, dataLengths, dataContext = processor.process(dataTensor, dataLengths, context)
 
-    # validDataTensor, validLengths, validContext = DeviationProcessor().process(fullDataTensor, fullDataLenghts, context)
-    validDataTensor, validLengths, validContext =fullDataTensor, fullDataLenghts, context
+    validDataTensor, validLengths, validContext = DeviationProcessor().process(fullDataTensor, fullDataLenghts, context)
+    # validDataTensor, validLengths, validContext =fullDataTensor, fullDataLenghts, context
 
     trainDataset = AnomalyDetectDataset(dataTensor, torch.zeros(dataTensor.shape), dataContext, dataLengths)
     validDataset = AnomalyDetectDataset(validDataTensor,torch.zeros(validDataTensor.shape), context, validLengths)
@@ -64,7 +69,7 @@ if __name__ == '__main__':
     epoch = 0
     keepTrainning = True
 
-    trainDataLoader = DataLoader(trainDataset, batch_size=1000, shuffle=False)
+    trainDataLoader = DataLoader(trainDataset, batch_size=100, shuffle=False)
     validDataLaoder = DataLoader(validDataset, shuffle=False, batch_size = validDataTensor.shape[0])
 
     losses = []
@@ -73,7 +78,7 @@ if __name__ == '__main__':
         for trainData, context, trainLabels, lengths in trainDataLoader:
             loss = trainer.train(trainData, lengths, trainLabels, context)
             curLosses.append(loss.item())
-        if epoch % 50 == 0:
+        if epoch % 500 == 0:
             trainer.save()
             # for testData, testLabels in testDataLoader:
             #     lengths = testLabels[:, testLabels.shape[1]-1]
@@ -87,5 +92,3 @@ if __name__ == '__main__':
                 trainer.recordResult(validData, validLengths, validContext, newFileList) 
             saveLosses(curLosses, "losses.csv")
         epoch += 1
-        # losses.append(torch.tensor(curLosses).mean().item())
-        # curLosses = list()

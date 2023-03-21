@@ -1,16 +1,22 @@
+import os.path as path
+
 class globalConfig():
 
     def __init__(self) -> None:
-        pass
+        self.savedPath = 'Saveds'
 
     @staticmethod
     def getModelPath():
-        return "SavedModels"
+        return path.join('Saved', "SavedModels") 
 
     @staticmethod
     def getSavedPicturePath():
-        return "SavedPics"
+        return path.join('Saved', "SavedPics")
 
     @staticmethod
     def getOriginalPicturePath():
-        return "OgPics"
+        return path.join('Saved', "OgPics")
+    
+    @staticmethod
+    def getCsvPath():
+        return path.join('Saved', "SavedCsvs")

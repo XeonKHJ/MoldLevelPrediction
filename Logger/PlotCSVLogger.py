@@ -3,6 +3,8 @@ import os.path
 
 import pandas as pd
 
+from globalConfig import globalConfig
+
 class PlotCSVLogger():
     def __init__(self, isPlotEnable, picFolder, csvFolder):
         self.isPlotEnable = isPlotEnable
@@ -26,7 +28,7 @@ class PlotCSVLogger():
             matplotlib.pyplot.show()
         if picname != None:
             if folderName == None:
-                matplotlib.pyplot.savefig(os.path.join('SavedPics', picname))
+                matplotlib.pyplot.savefig(os.path.join(globalConfig.getSavedPicturePath(), picname))
                 self.saveCsv(datas, labels, picname)
             else:
                 savePath = os.path.join(folderName, picname)

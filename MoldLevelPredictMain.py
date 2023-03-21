@@ -2,19 +2,22 @@ from os import path
 from pickletools import optimize
 
 from numpy import reshape
-from AnomalyDetectDataset import AnomalyDetectDataset
+from Dataset.AnomalyDetectDataset import AnomalyDetectDataset
 from DataProcessor.DeviationProcessor import DeviationProcessor
 from DataProcessor.ExtractValidProcessor import ExtractValidProcessor
 from DatasetReader.CastingDataReader import CastingDataReader
+from DatasetReader.CompleteCastingDataReader import CompleteCastingDataReader
 from DatasetReader.ValidCastingDataReader import ValidCastingDataReader
 from Models.DLModel import DLModel
 # from liner_param_model import LinerParamModel
 # from param_model import ParamModel
 import torch
 import torch.nn as nn
+import torch.optim
 
 from Logger.PlotLogger import PlotLogger
 from globalConfig import globalConfig
+from loss.dilate_loss import dilate_loss
 
 B = 1250  # 连铸坯宽度
 W = 230  # 连铸坯厚度
@@ -27,7 +30,8 @@ H2 = 1300  # 下水口水头高度
 H3 = 2  # 下侧孔淹没高度，需要计算
 h = 1  # 塞棒高度
 
-datasetReader = ValidCastingDataReader("./datasets")
+datasetReader = ValidCastingDataReader("./datasets", '2021-04-07-17-54-50-30Min')
+ogDatasetReader = CompleteCastingDataReader("./datasets", '2021-04-07-17-54-50-30Min')
 
 def get_input():
     fullDataTensor, fullDataLenghts, fullDataLabels, context, fileList = datasetReader.read()
@@ -158,7 +162,7 @@ def calculate_lv_acts_tensor_new(hs, ts, params, batch_size, batch_first = True,
 
 def init_ml_models():
     pm = DLModel()
-    lpm = LinerParamModel()
+    # lpm = LinerParamModel()
     return (pm, lpm)
 
 def convert_result_to_csv_str(hs, lv_acts, lv_preds):
@@ -199,59 +203,81 @@ def saveCsvMuti(datas, names, filename):
 
 if __name__ == '__main__':
     predictModel = DLModel()
-    fullDataTensor, fullDataLenghts, fullDataLabels, context, fileList = datasetReader.read()
+    predictModel.cuda()
+    ogDataTensor, ogDataLenghts, ogDataLabels, context, fileList = datasetReader.read()
+    completeDataTensor, completeDataLength, _,completeContext,_ = ogDatasetReader.read()
+    
+    startIdx, endIdx= datasetReader.getStartIdx()
+
     logger = PlotLogger(False)
     dataProcessors = [DeviationProcessor()]
     for dp in dataProcessors:
-        fullDataTensor, fullDataLenghts = dp.process(fullDataTensor, fullDataLenghts)
+        fullDataTensor, fullDataLenghts, context = dp.process(ogDataTensor, ogDataLenghts, context)
 
-    for idx, data in enumerate(fullDataTensor):
-        curList = data[0:fullDataLenghts[idx].int().item(),1].reshape(-1).tolist()
+    for idx, dlv in enumerate(fullDataTensor):
+        curList = dlv[0:fullDataLenghts[idx].int().item(),1].reshape(-1).tolist()
         logger.logResults([curList], ['lv_act'], 'lv-' + path.splitext(path.basename(fileList[idx]))[0], globalConfig.getOriginalPicturePath())
-        stoper = data[0:fullDataLenghts[idx].int().item(),0].reshape(-1).tolist()
+        stoper = dlv[0:fullDataLenghts[idx].int().item(),0].reshape(-1).tolist()
         logger.logResults([stoper], ['stoper'], 'stp-' + path.splitext(path.basename(fileList[idx]))[0], globalConfig.getOriginalPicturePath())
 
     epoch = 0
+    hs = fullDataTensor[:,:,0:1]
+    ols = ogDataTensor[:,:,1:2]
+    ls = fullDataTensor[:,:,1:2]
+    loss_function = nn.MSELoss()
+    preLv = ls[:,0:1,:] + 350
+    optimizer = torch.optim.Adam(predictModel.parameters(), 1e-2)
     while True:
+        predictModel.train()
         epoch += 1
-        pm_output, grow_output, noise_output = predictModel(ths, ts, phs, pre_lv_act)
+        deltaLv, totalLv = predictModel(hs, context, fullDataLenghts, preLv)
+        # totalLv = totalLv - 350
         # tls_pred = calculate_lv_acts_tensor(ths[0], ts, pm_output, ths.shape[0], previousTime=phs.__len__()*0.5, pre_lv_act=pre_lv_act)
         # tls_pred = tls_pred / 500
-        loss = loss_function(pm_output, tls_act)
-        print(loss)
-        loss.backward()
+        # loss1,_,_ = dilate_loss(deltaLv, ls[:,1:ls.shape[1],:], 0.5, 0.001, device=torch.device('cuda'))
+        loss2, _,_ = dilate_loss(totalLv, ols[:,1:ls.shape[1],:], 0.5, 0.001, device=torch.device('cuda'))
+
+        # loss = loss1+0.1*loss2
+
+        # loss2.backward()
+        # loss1.backward()
+        loss2.backward()
+        # loss = loss_function(totalLv, ls[:,1:ls.shape[1],:])
+        print('\tdilate', loss2.item())
         optimizer.step()
         optimizer.zero_grad()
-        # loptimizer.step()
-        # loptimizer.zero_grad()
 
-        if epoch % 500 == 0:
-            # tphs_output = pm(tphs)
-            # tpls_act = calculate_lv_acts_tensor(tphstob, pts, pm_output, 1)
-            for tpl_act in tpls_act.reshape([-1]).tolist():
-                print(tls_act)
-            print("-----------------------")
-            for lv_ptr in pm_output.reshape([-1]).tolist():
-                print(lv_ptr)
-            print("-----------------------")
-            lalala = lpm(tphstob)
-            for la in lalala.reshape([-1]).tolist():
-                print(la)
+        if epoch % 100 == 0:
+            predictModel.eval()
+            tdlv, ttlv = predictModel(completeDataTensor[:,:,0:1], completeContext, completeDataLength,0)
+            
+            tdlvInRange = tdlv[:, startIdx:endIdx, :]
+            results = [tdlvInRange[:,0,:].reshape(-1).item()+350]
+            preResults = []
+            for idx in range(1,tdlvInRange.shape[1],1):
+                results.append(results[idx-1] + tdlvInRange[:,idx,0].reshape(-1).item())
+            preResults = [results[0]]
+            curIdx = 0
+            for idx in range(startIdx, 0, -1):
+                preResults.append(preResults[curIdx-1] - tdlv[:,idx,0].reshape(-1).item())
+                curIdx += 1
+            preResults.reverse()
+            result = preResults[0:len(preResults)-1] + results
+            truth = (completeDataTensor[0, 0:len(result), 1] + 350).reshape(-1).tolist()
+            controls = completeDataTensor[0, 0:len(result), 0].reshape(-1).tolist()
 
-            mseLoss = torch.nn.MSELoss()(pm_output, tls_act)
-            print("mse\t", mseLoss)
-            outputlist = [
-                pm_output.reshape([-1]).tolist(),
-                grow_output.reshape([-1]).tolist(),
-                noise_output.reshape([-1]).tolist(),
-                tls_act.reshape([-1]).tolist()
-            ]
-            nameList = [
-                'total',
-                'grow',
-                'noise',
-                'real'
-            ]
-            saveCsvMuti(outputlist, nameList, 'compare')
+            saveCsvMuti([result, truth, controls], ['res', 'tru', 'controls'], path.join('Saved', 'PredictResult', 'comparett-' + str(idx)))
+            for idx, dlv in enumerate(deltaLv):
+                outputlist = [
+                    dlv.reshape([-1]).tolist(),
+                    totalLv[idx].reshape([-1]).tolist(),
+                    ogDataTensor[idx, 1:ls.shape[1], 1].reshape([-1]).tolist()
+                ]
+                nameList = [
+                    'total',
+                    'grow',
+                    'truth'
+                ]
+                saveCsvMuti(outputlist, nameList, path.join('Saved', 'PredictResult', 'compare-' + str(idx)))
 
 

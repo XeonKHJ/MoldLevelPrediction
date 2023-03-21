@@ -3,15 +3,21 @@ import torch
 import os.path as path
 
 class CastingDataReader():
-    def __init__(self, datasetPath) -> None:
+    def __init__(self, datasetPath, includeName = '') -> None:
         self.datasetPath = datasetPath
         self.contextName = "context.csv"
+        self.includeName = includeName
 
     def read(self):
         contexts = pandas.read_csv(path.join(self.datasetPath, self.contextName))
         datas = list()
         stoperPosDatas = list()
         filenames = contexts['filename'].tolist()
+        newFilenames = list()
+        for filename in filenames:
+            if filename.__contains__(self.includeName):
+                newFilenames.append(filename)
+        filenames = newFilenames
         for fileIdx, filename in enumerate(filenames):
             fileData = pandas.read_csv(path.join(self.datasetPath, filename))
             
@@ -28,7 +34,7 @@ class CastingDataReader():
                     break
             endIdx = len(stoperPos)
 
-            lv_acts = (torch.tensor(lv_acts) / targetLv).tolist()
+            lv_acts = (torch.tensor(lv_acts)).tolist()
 
             datas.append({'level':lv_acts[startIdx:endIdx], 'stoperPos': stoperPos[startIdx:endIdx], 'CSTSpeed':extractSpeed[startIdx:endIdx], 'thickness': contexts['thickness'][fileIdx], 'width': contexts['width'][fileIdx], 'steelType': contexts['steeltype'][fileIdx], 'targetLevel':targetLv})        
 
