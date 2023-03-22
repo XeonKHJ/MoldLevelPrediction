@@ -30,8 +30,8 @@ H2 = 1300  # 下水口水头高度
 H3 = 2  # 下侧孔淹没高度，需要计算
 h = 1  # 塞棒高度
 
-datasetReader = ValidCastingDataReader("./datasets", '2021-04-07-17-54-50-30Min')
-ogDatasetReader = CompleteCastingDataReader("./datasets", '2021-04-07-17-54-50-30Min')
+datasetReader = ValidCastingDataReader("./datasets", 'ML202205270218-1')
+ogDatasetReader = CompleteCastingDataReader("./datasets", 'ML202205270218-1')
 
 def get_input():
     fullDataTensor, fullDataLenghts, fullDataLabels, context, fileList = datasetReader.read()
@@ -203,6 +203,7 @@ def saveCsvMuti(datas, names, filename):
 
 if __name__ == '__main__':
     predictModel = DLModel()
+    predictModel.load_state_dict(torch.load(path.join('dlmodel.pt')))
     predictModel.cuda()
     ogDataTensor, ogDataLenghts, ogDataLabels, context, fileList = datasetReader.read()
     completeDataTensor, completeDataLength, _,completeContext,_ = ogDatasetReader.read()
@@ -225,58 +226,43 @@ if __name__ == '__main__':
     ols = ogDataTensor[:,:,1:2]
     ls = fullDataTensor[:,:,1:2]
     loss_function = nn.MSELoss()
-    preLv = ls[:,0:1,:] + 350
+    preLv = ls[:,0:1,:] + 0
     optimizer = torch.optim.Adam(predictModel.parameters(), 1e-2)
+    offset = 6
+    zeros = torch.zeros( ols[:,offset:ls.shape[1],:].shape, device=torch.device('cuda'))
+    losses = []
     while True:
         predictModel.train()
         epoch += 1
-        deltaLv, totalLv = predictModel(hs, context, fullDataLenghts, preLv)
-        # totalLv = totalLv - 350
-        # tls_pred = calculate_lv_acts_tensor(ths[0], ts, pm_output, ths.shape[0], previousTime=phs.__len__()*0.5, pre_lv_act=pre_lv_act)
-        # tls_pred = tls_pred / 500
-        # loss1,_,_ = dilate_loss(deltaLv, ls[:,1:ls.shape[1],:], 0.5, 0.001, device=torch.device('cuda'))
-        loss2, _,_ = dilate_loss(totalLv, ols[:,1:ls.shape[1],:], 0.5, 0.001, device=torch.device('cuda'))
-
-        # loss = loss1+0.1*loss2
-
-        # loss2.backward()
-        # loss1.backward()
-        loss2.backward()
-        # loss = loss_function(totalLv, ls[:,1:ls.shape[1],:])
-        print('\tdilate', loss2.item())
+        totalLv, theoryLv, noise_out = predictModel(hs, context, fullDataLenghts, preLv)
+        mseloss2 = loss_function(totalLv, ls[:,offset:ls.shape[1],:])
+        noiseLoss = loss_function(noise_out,zeros)
+        loss = mseloss2 + noiseLoss
+        losses.append(loss.item())
+        loss.backward()
+        print('\tdilate', loss.item())
         optimizer.step()
         optimizer.zero_grad()
 
         if epoch % 100 == 0:
-            predictModel.eval()
-            tdlv, ttlv = predictModel(completeDataTensor[:,:,0:1], completeContext, completeDataLength,0)
-            
-            tdlvInRange = tdlv[:, startIdx:endIdx, :]
-            results = [tdlvInRange[:,0,:].reshape(-1).item()+350]
-            preResults = []
-            for idx in range(1,tdlvInRange.shape[1],1):
-                results.append(results[idx-1] + tdlvInRange[:,idx,0].reshape(-1).item())
-            preResults = [results[0]]
-            curIdx = 0
-            for idx in range(startIdx, 0, -1):
-                preResults.append(preResults[curIdx-1] - tdlv[:,idx,0].reshape(-1).item())
-                curIdx += 1
-            preResults.reverse()
-            result = preResults[0:len(preResults)-1] + results
-            truth = (completeDataTensor[0, 0:len(result), 1] + 350).reshape(-1).tolist()
-            controls = completeDataTensor[0, 0:len(result), 0].reshape(-1).tolist()
-
-            saveCsvMuti([result, truth, controls], ['res', 'tru', 'controls'], path.join('Saved', 'PredictResult', 'comparett-' + str(idx)))
-            for idx, dlv in enumerate(deltaLv):
+            saveCsvMuti([losses], ['loss'], 'predictLosses.csv')
+            for idx, dlv in enumerate(totalLv):
+                torch.save(predictModel.state_dict(), path.join('dlmodel.pt'))
                 outputlist = [
-                    dlv.reshape([-1]).tolist(),
                     totalLv[idx].reshape([-1]).tolist(),
-                    ogDataTensor[idx, 1:ls.shape[1], 1].reshape([-1]).tolist()
+                    theoryLv.reshape([-1]).tolist(),
+                    noise_out[idx].reshape([-1]).tolist(),
+                    ogDataTensor[idx, offset:ls.shape[1], 1].reshape([-1]).tolist(),
+                    ls[idx, offset:ls.shape[1]].reshape([-1]).tolist(),
+                    hs[idx, 0:hs.shape[1] - offset].reshape([-1]).tolist()
                 ]
                 nameList = [
                     'total',
                     'grow',
-                    'truth'
+                    'noise',
+                    'truth',
+                    'dl',
+                    'hs'
                 ]
                 saveCsvMuti(outputlist, nameList, path.join('Saved', 'PredictResult', 'compare-' + str(idx)))
 

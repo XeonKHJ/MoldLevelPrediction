@@ -52,7 +52,7 @@ class FEGAETrainer():
         output = self.forcastModel(preSet, lengths / 2, context)
         t = output + error
         # realLoss = self.lossFunc(output, latterSet)
-        realLoss ,_,_= dilate_loss(output, latterSet, 0.5, 0.01, device=torch.device('cuda'))
+        realLoss = self.lossFunc(output, latterSet)
         # dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.01, device=torch.device('cuda'))
         
         mseloss = self.lossFunc(t, latterSet)
@@ -67,7 +67,7 @@ class FEGAETrainer():
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2)).detach()
         output = self.forcastModel(preSet, lengths / 2, context)
         tl = latterSet - error
-        forcastLoss,_,_ = dilate_loss(output, tl, 0.5, 0.01, device=torch.device('cuda'))
+        forcastLoss = self.lossFunc(output, tl)
         forcastLoss.backward()
         self.forcastOptimizer.step()
         # self.errorOptimizer.step()
@@ -188,7 +188,7 @@ class FEGAETrainer():
             #     maxf1 = f1
             #     self.toRecordThresholds = thresholds
 
-            if threadholder.stdRate == 1 and threadholder.meanRate == 0.4:
+            if threadholder.stdRate == 0.5 and threadholder.meanRate == 0.3:
                 maxf1 = f1
                 self.toRecordThresholds = thresholds
 

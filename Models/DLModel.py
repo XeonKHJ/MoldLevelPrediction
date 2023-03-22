@@ -14,7 +14,7 @@ class DLModel(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        hidden_size = 4
+        hidden_size = 2
         num_layers = 2
 
 
@@ -44,12 +44,24 @@ class DLModel(nn.Module):
 
 
     def forward(self, x, context, lengths, preLv):
+        offset = 6
         hs = x
+        aLengths = (lengths).reshape(-1).tolist()
+        lengths = (lengths-offset).reshape(-1).tolist()
+        
+        # packX = torchrnn.pack_padded_sequence(x, aLengths, True)
+        # ls, _ = self.lstm(x)
+
+        # padX, _ = torchrnn.pad_packed_sequence(packX, True)
+
         x = self.fc1(x)  # _x is input, size (seq_len, batch, input_size)
         x = self.relu1(x)
         x = self.fc2(x)
         x = self.relu2(x)
         x = self.fc3(x)
+
+
+        
 
         ts = torch.zeros(x.shape[1], device=torch.device('cuda'))
         ts[:] = 0.5
@@ -57,23 +69,28 @@ class DLModel(nn.Module):
         pre_lv_act[:] = preLv
         deltaLvs, totalLvs = self.calculate_lv_acts_tensor(hs, ts, x, x.shape[0], 0, pre_lv_act)
 
-        # noise_out, (h, c) = self.noiseLstm(x)
-        # # firstNoiseOutput, (h,c) = self.noiseLstm(h[-1,:,:].reshape([-1,1,1]), (h, c))
-        # noiseOutput = torch.zeros([x.shape[0],0,1])
-        # for i in range(x.shape[1]):
-        #     singleNoiseOutput, (h, c) = self.noiseLstm(h[-1,:,:].reshape([-1,1,1]), (h, c))
-        #     noiseOutput = torch.cat((noiseOutput, singleNoiseOutput), 1)
-        # noiseOutput = self.noiseFc(noiseOutput)
+        totalLvs = torchrnn.pack_padded_sequence(hs, lengths, batch_first=True)
         
+        noise_out, (h, c) = self.noiseLstm(totalLvs)
+        firstNoiseOutput, (h,c) = self.noiseLstm(h[-1,:,:].reshape([-1,1,1]), (h, c))
+        noiseOutput = torch.zeros([x.shape[0],0,1], device=torch.device('cuda'))
+        for i in range(x.shape[1] - offset):
+            singleNoiseOutput, (h, c) = self.noiseLstm(h[-1,:,:].reshape([-1,1,1]), (h, c))
+            noiseOutput = torch.cat((noiseOutput, singleNoiseOutput), 1)
+        noiseOutput = self.noiseFc(noiseOutput)
+        
+        totalLvs, _ = torchrnn.pad_packed_sequence(totalLvs, True)
         # finalOutput = noiseOutput + deltaLvs
-        lengths = (lengths-1).reshape(-1).tolist()
-        totalLvs = totalLvs - self.startLv
-        deltaLvs = torchrnn.pack_padded_sequence(deltaLvs, lengths, batch_first=True)
-        deltaLvs, _ = torchrnn.pad_packed_sequence(deltaLvs, batch_first=True)
-        totalLvs = torchrnn.pack_padded_sequence(totalLvs, lengths, batch_first=True)
-        totalLvs, _ = torchrnn.pad_packed_sequence(totalLvs, batch_first=True)
+        # noise_out, _ = torchrnn.pad_packed_sequence(noise_out, True)
 
-        return deltaLvs, totalLvs
+        #ctotalLvs = totalLvs - self.startLv
+        output = noiseOutput + deltaLvs[:,offset: deltaLvs.shape[1]]
+        # deltaLvs = torchrnn.pack_padded_sequence(deltaLvs, lengths, batch_first=True)
+        # deltaLvs, _ = torchrnn.pad_packed_sequence(deltaLvs, batch_first=True)
+        # totalLvs = torchrnn.pack_padded_sequence(totalLvs, lengths, batch_first=True)
+        # totalLvs, _ = torchrnn.pad_packed_sequence(totalLvs, batch_first=True)
+
+        return output, totalLvs, noiseOutput
     
 
     def stp_pos_flow_tensor(self, h_act, lv_act, t, dt=0.5, params=[0,0,0,0]):
