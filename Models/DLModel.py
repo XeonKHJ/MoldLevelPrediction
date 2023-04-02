@@ -18,7 +18,7 @@ class DLModel(nn.Module):
         num_layers = 2
 
 
-        self.fc1 = nn.Linear(1,3)
+        self.fc1 = nn.Linear(1,2)
         self.relu1 = nn.LeakyReLU()
         self.fc2 = nn.Linear(3,4)
         self.relu2 = nn.LeakyReLU()
@@ -55,10 +55,10 @@ class DLModel(nn.Module):
         # padX, _ = torchrnn.pad_packed_sequence(packX, True)
 
         x = self.fc1(x)  # _x is input, size (seq_len, batch, input_size)
-        x = self.relu1(x)
-        x = self.fc2(x)
-        x = self.relu2(x)
-        x = self.fc3(x)
+        # x = self.relu1(x)
+        # x = self.fc2(x)
+        # x = self.relu2(x)
+        # x = self.fc3(x)
 
 
         
@@ -90,7 +90,7 @@ class DLModel(nn.Module):
         # totalLvs = torchrnn.pack_padded_sequence(totalLvs, lengths, batch_first=True)
         # totalLvs, _ = torchrnn.pad_packed_sequence(totalLvs, batch_first=True)
 
-        return output, totalLvs, noiseOutput
+        return deltaLvs[:,offset: deltaLvs.shape[1]], totalLvs, noiseOutput
     
 
     def stp_pos_flow_tensor(self, h_act, lv_act, t, dt=0.5, params=[0,0,0,0]):

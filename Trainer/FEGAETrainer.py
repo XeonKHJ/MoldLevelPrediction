@@ -53,11 +53,12 @@ class FEGAETrainer():
         t = output + error
         # realLoss = self.lossFunc(output, latterSet)
         realLoss = self.lossFunc(output, latterSet)
-        # dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.01, device=torch.device('cuda'))
-        
+        dialteloss,tempLoss, shapeLoss= dilate_loss(t, latterSet, 0.5, 0.001, device=torch.device('cuda'))
+        zeros = torch.zeros(error.shape, device=torch.device('cuda'))
         mseloss = self.lossFunc(t, latterSet)
-        errorExpand = 1/torch.norm(error, p=1) * error.shape[0]
-        totalLoss = mseloss + self.lambda1 * realLoss + self.lambda2 * errorExpand
+        # errorExpand = torch.norm(error, p=2) / (error.shape[0] * error.shape[1] * error.shape[2])
+        errorExpand = self.lossFunc(error, zeros)
+        totalLoss = dialteloss + 10 * errorExpand
         totalLoss.backward()
         self.forcastOptimizer.step()
         self.errorOptimizer.step()
