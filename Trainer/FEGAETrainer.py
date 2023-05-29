@@ -63,6 +63,7 @@ class FEGAETrainer():
         self.forcastOptimizer.step()
         self.errorOptimizer.step()
 
+
         self.forcastOptimizer.zero_grad()
         self.errorOptimizer.zero_grad()
         error = self.errorModel(trainSet, lengths, context, int(trainSet.shape[1] / 2)).detach()
