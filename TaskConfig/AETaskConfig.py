@@ -1,3 +1,4 @@
+from Models.Seq2SeqLstmAE import Seq2SeqLstmAE
 from Trainer.FEGAETrainer import FEGAETrainer
 from Models.BiGruAE import BiGruAE
 from Models.BiLSTMAE import BiLSTMAE
@@ -19,7 +20,7 @@ class AETaskConfig():
         feature_size = 1
         extraFeatSize = 4
         output_size = 1
-        forcastModel = BiLSTMAE(feature_size,extraFeatSize,10,output_size,2)
+        forcastModel = Seq2SeqLstmAE(feature_size,extraFeatSize,10,output_size,2)
         if torch.cuda.is_available():
             forcastModel.cuda()
         trainer = Trainer(forcastModel, self.logger, 1e-3, self.modelName, self.showTrainningInfo, windowSize=self.windowSize)

@@ -38,7 +38,9 @@ if __name__ == '__main__':
     # experiment = RAENABExperiment(logger, "realTweets", "Twitter")
     # experiment = AECastingExperiment(logger)
     # experiment = ValidSeq2SeqExperiment(logger)
-    experiment = ValidDeviationExperiment(logger)
+    # experiment = ValidDeviationExperiment(logger)
+    # experiment = FEGAECastingExperiment(logger)
+    experiment = ValidAEExperiment(logger)
     trainer, trainDataReader, validDataReader, processers = experiment.getExperimentConfig()
 
     # load data
@@ -48,13 +50,14 @@ if __name__ == '__main__':
 
     # displayDataTensor, displayDataLenghts, displayDataLabels, displayFileList = dataReader.read()
     for i in range(fullDataTensor.shape[0]):
-        curList = fullDataTensor[i,0:fullDataLenghts[i].int().item(),0].reshape(-1).tolist()
-        stoper = fullDataTensor[i,0:fullDataLenghts[i].int().item(),1].reshape(-1).tolist()
-        logger.logResults([curList, stoper], ['lv_act','stoper'], path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
+        stopperPoses = fullDataTensor[i,0:fullDataLenghts[i].int().item(),0].reshape(-1).tolist()
+        liqLevels = fullDataTensor[i,0:fullDataLenghts[i].int().item(),1].reshape(-1).tolist()
+        # logger.logResults([stopperPoses, liqLevels], ['stoper','liqlv'], path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
+        logger.logResults([liqLevels], ['liqlv'], path.splitext(path.basename(fileList[i]))[0], globalConfig.getOriginalPicturePath())
 
     # data preprocess
-    dataTensor = fullDataTensor
-    dataLengths = fullDataLenghts
+    dataTensor = fullDataTensor[0:7]
+    dataLengths = fullDataLenghts[0:7]
     dataContext = context
     for processor in processers:
         dataTensor, dataLengths, dataContext = processor.process(dataTensor, dataLengths, context)
@@ -78,7 +81,7 @@ if __name__ == '__main__':
         for trainData, context, trainLabels, lengths in trainDataLoader:
             loss = trainer.train(trainData, lengths, trainLabels, context)
             curLosses.append(loss.item())
-        if epoch % 500 == 0:
+        if epoch % 100 == 0:
             trainer.save()
             # for testData, testLabels in testDataLoader:
             #     lengths = testLabels[:, testLabels.shape[1]-1]

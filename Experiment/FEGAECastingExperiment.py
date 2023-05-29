@@ -15,7 +15,7 @@ class FEGAECastingExperiment(object):
         return "FEGAECastingExperiment"
 
     def getExperimentConfig(self):
-        normalDataReader = CastingDataReader("datasets")
+        normalDataReader = CastingDataReader("datasets", '', True)
         config = FEGAETaskConfig(self.logger, self.getName(), showTrainingInfo=True)
         trainer = config.getConfig()
         windowSize = 100

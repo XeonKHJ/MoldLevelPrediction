@@ -3,10 +3,11 @@ import torch
 import os.path as path
 
 class CastingDataReader():
-    def __init__(self, datasetPath, includeName = '') -> None:
+    def __init__(self, datasetPath, includeName = '', divideTargetLv = False) -> None:
         self.datasetPath = datasetPath
         self.contextName = "context.csv"
         self.includeName = includeName
+        self.divideTargetLv = divideTargetLv
 
     def read(self):
         contexts = pandas.read_csv(path.join(self.datasetPath, self.contextName))
@@ -20,9 +21,11 @@ class CastingDataReader():
         filenames = newFilenames
         for fileIdx, filename in enumerate(filenames):
             fileData = pandas.read_csv(path.join(self.datasetPath, filename))
-            
             targetLv = float(fileData['TargetLevel'].tolist()[0])
             lv_acts = fileData['ActualLevel'].tolist()
+            if self.divideTargetLv:
+                lv_acts = (torch.tensor(lv_acts) / targetLv).tolist()
+            
             stoperPos = fileData['StoperPo'].tolist()
             extractSpeed = fileData['CSTSpeed'].tolist()
             stoperPosDatas.append(stoperPos)

@@ -58,7 +58,7 @@ class FEGAETrainer():
         mseloss = self.lossFunc(t, latterSet)
         # errorExpand = torch.norm(error, p=2) / (error.shape[0] * error.shape[1] * error.shape[2])
         errorExpand = self.lossFunc(error, zeros)
-        totalLoss = dialteloss + 10 * errorExpand
+        totalLoss = mseloss + 10 * errorExpand
         totalLoss.backward()
         self.forcastOptimizer.step()
         self.errorOptimizer.step()
@@ -189,7 +189,7 @@ class FEGAETrainer():
             #     maxf1 = f1
             #     self.toRecordThresholds = thresholds
 
-            if threadholder.stdRate == 0.5 and threadholder.meanRate == 0.3:
+            if threadholder.stdRate == 0.3 and threadholder.meanRate == 0.1:
                 maxf1 = f1
                 self.toRecordThresholds = thresholds
 

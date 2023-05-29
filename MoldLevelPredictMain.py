@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.optim
 
 from Logger.PlotLogger import PlotLogger
+from Models.Seq2SeqLstmAE import Seq2SeqLstmAE
 from globalConfig import globalConfig
 from loss.dilate_loss import dilate_loss
 
@@ -70,7 +71,7 @@ def saveCsvMuti(datas, names, filename):
 
 
 if __name__ == '__main__':
-    predictModel = DLModel()
+    predictModel = Seq2SeqLstmAE(1,4,10,1,2)
     # predictModel.load_state_dict(torch.load(path.join('dlmodel.pt')))
     predictModel.cuda()
     ogDataTensor, ogDataLenghts, ogDataLabels, context, fileList = datasetReader.read()
@@ -102,13 +103,15 @@ if __name__ == '__main__':
     while True:
         predictModel.train()
         epoch += 1
-        totalLv, theoryLv, noise_out = predictModel(hs, context, fullDataLenghts, preLv)
+        # totalLv, theoryLv, noise_out = predictModel(hs, context, fullDataLenghts, preLv)
+        totalLv = predictModel(hs, fullDataLenghts, context, hs.shape[1])
         mseloss2 = loss_function(totalLv, ls[:,offset:ls.shape[1],:])
-        noiseLoss = loss_function(noise_out,zeros)
-        loss = mseloss2 + noiseLoss
+        # noiseLoss = loss_function(noise_out,zeros)
+        # loss = mseloss2 + noiseLoss
+        loss = mseloss2
         losses.append(loss.item())
         loss.backward()
-        print('\tdilate', loss.item())
+        print('dilate', loss.item())
         optimizer.step()
         optimizer.zero_grad()
 

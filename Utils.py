@@ -13,7 +13,7 @@ class DynamicThreshold(object):
             for idx in range(0, lengths[dataIdx], self.windowSize):
                 curWindowData = tensor[dataIdx, idx:idx+self.windowSize, :]
                 std, mean = torch.std_mean(curWindowData)
-                threshold = self.stdRate * std + self.meanRate * mean + 1e-2
+                threshold = self.stdRate * std + self.meanRate * torch.abs(mean) + 1e-2
                 threasholds[dataIdx, idx:idx+self.windowSize, :] = threshold
         return threasholds
 

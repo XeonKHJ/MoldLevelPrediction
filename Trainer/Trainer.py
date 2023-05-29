@@ -134,9 +134,9 @@ class Trainer():
 
     def reconstruct(self, mlModel, validDataset, validsetLength, context):
         reconstructSeqs = torch.zeros(validDataset.shape, device=torch.device('cuda'))
-        for idx in range(0, validDataset.shape[1]-100+1, 50):
-            curInput = validDataset[:,idx:idx+100,:]
+        for idx in range(0, validDataset.shape[1]-self.windowSize+1, self.windowSize):
+            curInput = validDataset[:,idx:idx+self.windowSize,:]
             lengths = torch.tensor(curInput.shape[1]).repeat(curInput.shape[0])
-            output = mlModel(validDataset[:,idx:idx+100,:], lengths, context)
-            reconstructSeqs[:,idx:idx+100,:] = output
+            output = mlModel(validDataset[:,idx:idx+self.windowSize,:], lengths, context)
+            reconstructSeqs[:,idx:idx+self.windowSize,:] = output
         return reconstructSeqs
